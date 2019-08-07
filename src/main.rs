@@ -9,7 +9,6 @@ const NUM_HASHES: usize = TREE_SIZE + 1;
 // Before updating, all account's have a balance of 0. Therefore, the accounts' root before updating
 // is `zh(4) == "0x536d98837f2dd165a55d5eeae91485954472d56f246df256bf3cae19352a123c"`.
 //
-
 //
 //                 +-------- 0 --------+                <= zh(4)
 //                /                     \
