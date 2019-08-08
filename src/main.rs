@@ -7,28 +7,34 @@ const NUM_HASHES: usize = TREE_SIZE + 1;
 // AccountBalance => FixedVector[u256, 16];
 //
 // Before updating, all account's have a balance of 0. Therefore, the accounts' root before updating
-// is `zh(4) == "0x536d98837f2dd165a55d5eeae91485954472d56f246df256bf3cae19352a123c"`.
+// is `zh(4)`.
 //
-//
-//                 +-------- 0 --------+                <= zh(4)
+//                 +-------- 1 --------+                <= zh(4)
 //                /                     \
-//           +-- 1 --+               +-- 2 --+          <= zh(3)
+//           +-- 2 --+               +-- 3 --+          <= zh(3)
 //          /         \             /         \
-//         3           4           5           6        <= zh(2)
+//         4           5           6           7        <= zh(2)
 //       /   \       /   \       /   \       /  \
-//      7     8     9    10     11   12     13   14     <= zh(1)
+//      8     9     10   11     12   13     14   15     <= zh(1)
 //     / \   / \   / \   / \   / \   / \   / \   / \
-//    15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30   <= zh(0)
+//    16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31   <= zh(0) <= account balance
+//     | |   | |   | |   | |   | |   | |   | |   | |
+//     v v   v v   v v   v v   v v   v v   v v   v v
+//
+//     0 1   2 3   4 5   6 7   8 9  10 11 12 13 14 15   <= account index
 
 fn main() {
-    // Bytes representation of "0x536d98837f2dd165a55d5eeae91485954472d56f246df256bf3cae19352a123c".
+    // Bytes representation of `zh(4)` (e.g. "0x536d98837f2dd165a55d5eeae91485954472d56f246df256bf3cae19352a123c").
     let pre_state_root: [u8; 32] = [
         83, 109, 152, 131, 127, 45, 209, 101, 165, 93, 94, 234, 233, 20, 133, 149, 68, 114, 213,
         111, 36, 109, 242, 86, 191, 60, 174, 25, 53, 42, 18, 60,
     ];
 
-    // Merkle proof for the account at index `0`, which includes the chunks at these indexes:
-    // [15, 16, 8, 4, 2]. The balance of accounts `0` and `1` is `0`.
+    // The account which the proof is for and whose balance will be updated
+    let account: usize = 0;
+
+    // Merkle proof for an account with a balance of 0. Since all account have a balance of 0, this
+    // initial proof can be used interchangably amongst them.
     let input: [&[u8; 32]; 5] = [
         &[0u8; 32],
         &[0u8; 32],
@@ -57,7 +63,13 @@ fn main() {
     let mut post_state_root = [0u8; 32];
 
     // Calculate the post-state root and verify the pre-state root in one pass.
-    single_pass(&input, &pre_state_root, &mut post_state_root, &new_balance);
+    single_pass(
+        account + 16,
+        &input,
+        &pre_state_root,
+        &mut post_state_root,
+        &new_balance,
+    );
 
     println!("pre-state root:  {}", hex::encode(&pre_state_root));
     println!("post-state root: {}", hex::encode(&post_state_root));
@@ -65,33 +77,61 @@ fn main() {
 
 // A few caveats at the moment:
 //
-// i)   This only works if the intial balance of the account is `0`.
-// ii)  The logic is hard-coded for the left most account (e.g. index `0`).
-// ii)  Only supports a single branch.
+// i) Only supports a single branch.
 fn single_pass(
+    mut index: usize,
     chunks: &[&[u8; 32]; NUM_HASHES],
     pre_state_root: &[u8; 32],
     post_state_root_buf: &mut [u8; 32],
     new_balance: &[u8; 32],
 ) {
-    // Initialize buffers to hold the different calculations. The first 32 bytes are the right
-    // chunk and the second 32 bytes is the left chunk.
+    // Initialize buffers to hold the different calculations. The first 32 bytes are the left
+    // chunk and the second 32 bytes is the right chunk.
     let mut pre_buf = [0u8; 64];
     let mut post_buf = [0u8; 64];
 
-    // Start by copying the new balance into the left chunk's slot. Because we're starting in the
-    // left slot, this will only work for updating the balance of odd numbered accounts.
+    // Copy the starting bytes for both buffers. They will be more into the correct slot later
+    // depending on the parity of the leaf.
+    pre_buf[0..32].copy_from_slice(chunks[0]);
     post_buf[0..32].copy_from_slice(new_balance);
 
-    // Begin calculating the root -- skip the first chunk since it is either `0` or `new_balance`.
+    // Begin calculating the root -- skip the first chunk since it has already been loaded into the
+    // buffer.
     for chunk in chunks.iter().skip(1) {
+        let left = index & (-2isize as usize);
+        let right = left + 1;
+
+        // If the last calculated hash was for an odd node, it should be in the second 32 bytes of
+        // the hash buffer.
+        if index % 2 == 1 {
+            let mut tmp = [0u8; 32];
+            tmp.copy_from_slice(&pre_buf[0..32]);
+            pre_buf[32..64].copy_from_slice(&tmp);
+
+            tmp.copy_from_slice(&post_buf[0..32]);
+            post_buf[32..64].copy_from_slice(&tmp);
+        }
+
         // Copy the sibling chunk into the buffer to be hashed.
-        pre_buf[32..64].copy_from_slice(*chunk);
-        post_buf[32..64].copy_from_slice(*chunk);
+        pre_buf[slot((1 + index) % 2)].copy_from_slice(*chunk);
+        post_buf[slot((1 + index) % 2)].copy_from_slice(*chunk);
+
+        println!(
+            "last calculated: {}\nh({}, {})\npre-state:  {:?} | {:?}\npost-state: {:?} | {:?}\n",
+            index,
+            left,
+            right,
+            hex::encode(&pre_buf[0..32]),
+            hex::encode(&pre_buf[32..64]),
+            hex::encode(&post_buf[0..32]),
+            hex::encode(&post_buf[32..64]),
+        );
 
         // The hash function will hash all 64 bytes & replace the first 32 bytes with the new hash.
         hash(&mut pre_buf);
         hash(&mut post_buf);
+
+        index = index / 2;
     }
 
     // Verify that the calculated pre-state root is equal to the expected pre-state root.
@@ -99,4 +139,12 @@ fn single_pass(
 
     // Return the calculated post-state root.
     post_state_root_buf.copy_from_slice(&post_buf[0..32]);
+}
+
+/// Determine which slot the chunk data should go, depending on the parity.
+///
+/// Even => Left node  => 0..32
+/// Odd  => Right node => 32..64
+fn slot(parity: usize) -> std::ops::Range<usize> {
+    (32 * parity)..((32 * parity) + 32)
 }
