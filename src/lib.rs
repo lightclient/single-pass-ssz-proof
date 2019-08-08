@@ -109,18 +109,9 @@ mod tests {
         //
         //     0 1   2 3   4 5   6 7   8 9  10 11 12 13 14 15   <= account index
 
-        // Bytes representation of `zh(4)`.
-        let mut pre_state_root = [0u8; 32];
-        pre_state_root.copy_from_slice(
-            &hex::decode("536d98837f2dd165a55d5eeae91485954472d56f246df256bf3cae19352a123c")
-                .unwrap()[0..32],
-        );
-
         // The account which the proof is for and whose balance will be updated
         let account: usize = 0;
 
-        // Merkle proof for an account with a balance of 0. Since all account have a balance of 0, this
-        // initial proof can be used interchangably amongst them.
         let mut input = [
             &mut [0u8; 32],
             &mut [0u8; 32],
@@ -129,6 +120,8 @@ mod tests {
             &mut [0u8; 32],
         ];
 
+        // Generate a merkle proof for an account with a balance of 0. Since all account have a
+        // balance of 0, this initial proof can be used interchangably amongst them.
         generate_branch(4, &mut input[0..5]);
 
         // The new balance will `1u256`.
@@ -151,15 +144,22 @@ mod tests {
             &new_balance,
         );
 
-        // Verify that the calculated pre-state root is equal to the expected pre-state root.
-        assert_eq!(pre_state_root, calculated_pre_state_root);
-
         #[cfg(feature = "std")]
         println!(
             "final:\npre-state root:  {}\npost-state root: {}",
             hex::encode(&calculated_pre_state_root),
             hex::encode(&calculated_post_state_root)
         );
-    }
 
+        // Verify that the calculated root is equal to the expected roots.
+        let pre_state_root =
+            &hex::decode("536d98837f2dd165a55d5eeae91485954472d56f246df256bf3cae19352a123c")
+                .unwrap()[0..32];
+        let post_state_root =
+            &hex::decode("0eefb94faea1cefdd28c895a51ba5822bcac513cd59413ece941e21d78bc83c4")
+                .unwrap()[0..32];
+
+        assert_eq!(pre_state_root, calculated_pre_state_root);
+        assert_eq!(post_state_root, calculated_post_state_root);
+    }
 }
