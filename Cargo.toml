@@ -9,3 +9,7 @@ edition = "2018"
 [dependencies]
 sha2 = "0.8.0"
 hex = "0.3.2"
+
+[features]
+default = ["std"]
+std = []

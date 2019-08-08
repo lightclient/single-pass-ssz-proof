@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 mod utils;
 use utils::hash;
 
@@ -36,16 +38,21 @@ fn main() {
     // Merkle proof for an account with a balance of 0. Since all account have a balance of 0, this
     // initial proof can be used interchangably amongst them.
     let input: [&[u8; 32]; 5] = [
+        // Account leaf
         &[0u8; 32],
+        // Sibling account
         &[0u8; 32],
+        // zh(1) sister
         &[
             245, 165, 253, 66, 209, 106, 32, 48, 39, 152, 239, 110, 211, 9, 151, 155, 67, 0, 61,
             35, 32, 217, 240, 232, 234, 152, 49, 169, 39, 89, 251, 75,
         ],
+        // zh(2) sister
         &[
             219, 86, 17, 78, 0, 253, 212, 193, 248, 92, 137, 43, 243, 90, 201, 168, 146, 137, 170,
             236, 177, 235, 208, 169, 108, 222, 96, 106, 116, 139, 93, 113,
         ],
+        // zh(3) sister
         &[
             199, 128, 9, 253, 240, 127, 197, 106, 17, 241, 34, 55, 6, 88, 163, 83, 170, 165, 66,
             237, 99, 228, 76, 75, 193, 95, 244, 205, 16, 90, 179, 60,
@@ -71,8 +78,12 @@ fn main() {
         &new_balance,
     );
 
-    println!("pre-state root:  {}", hex::encode(&pre_state_root));
-    println!("post-state root: {}", hex::encode(&post_state_root));
+    #[cfg(feature = "std")]
+    println!(
+        "pre-state root:  {}\npost-state root: {}",
+        hex::encode(&pre_state_root),
+        hex::encode(&post_state_root)
+    );
 }
 
 // A few caveats at the moment:
@@ -98,12 +109,14 @@ fn single_pass(
     // Begin calculating the root -- skip the first chunk since it has already been loaded into the
     // buffer.
     for chunk in chunks.iter().skip(1) {
-        let left = index & (-2isize as usize);
-        let right = left + 1;
+        // The leaf's parity determines which slot the chunk data should go.
+        // Even => Left node  => 0..32
+        // Odd  => Right node => 32..64
+        let parity = index % 2;
 
         // If the last calculated hash was for an odd node, it should be in the second 32 bytes of
         // the hash buffer.
-        if index % 2 == 1 {
+        if parity == 1 {
             let mut tmp = [0u8; 32];
             tmp.copy_from_slice(&pre_buf[0..32]);
             pre_buf[32..64].copy_from_slice(&tmp);
@@ -112,20 +125,28 @@ fn single_pass(
             post_buf[32..64].copy_from_slice(&tmp);
         }
 
-        // Copy the sibling chunk into the buffer to be hashed.
-        pre_buf[slot((1 + index) % 2)].copy_from_slice(*chunk);
-        post_buf[slot((1 + index) % 2)].copy_from_slice(*chunk);
+        // Copy the sibling chunk into the buffer to be hashed. Xor the leaf's parity to get the
+        // sibling's parity.
+        let begin = 32 * (parity ^ 1);
+        let end = 32 * (parity ^ 1) + 32;
+        pre_buf[begin..end].copy_from_slice(*chunk);
+        post_buf[begin..end].copy_from_slice(*chunk);
 
-        println!(
-            "last calculated: {}\nh({}, {})\npre-state:  {:?} | {:?}\npost-state: {:?} | {:?}\n",
-            index,
-            left,
-            right,
-            hex::encode(&pre_buf[0..32]),
-            hex::encode(&pre_buf[32..64]),
-            hex::encode(&post_buf[0..32]),
-            hex::encode(&post_buf[32..64]),
-        );
+        #[cfg(feature = "std")]
+        {
+            let left = index & (-2isize as usize);
+            let right = left + 1;
+            println!(
+                "last calculated: {}\nh({}, {})\npre-state:  {:?} | {:?}\npost-state: {:?} | {:?}\n",
+                index,
+                left,
+                right,
+                hex::encode(&pre_buf[0..32]),
+                hex::encode(&pre_buf[32..64]),
+                hex::encode(&post_buf[0..32]),
+                hex::encode(&post_buf[32..64]),
+            );
+        }
 
         // The hash function will hash all 64 bytes & replace the first 32 bytes with the new hash.
         hash(&mut pre_buf);
@@ -139,12 +160,4 @@ fn single_pass(
 
     // Return the calculated post-state root.
     post_state_root_buf.copy_from_slice(&post_buf[0..32]);
-}
-
-/// Determine which slot the chunk data should go, depending on the parity.
-///
-/// Even => Left node  => 0..32
-/// Odd  => Right node => 32..64
-fn slot(parity: usize) -> std::ops::Range<usize> {
-    (32 * parity)..((32 * parity) + 32)
 }
