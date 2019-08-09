@@ -1,0 +1,10 @@
+bazaar:
+  file: "target/wasm32-unknown-unknown/release/single_pass_ssz_partial_algo.wasm"
+  trimexports:
+    preset: "ewasm"
+  verifyexports:
+    preset: "ewasm"
+  repack:
+    preset: "ewasm"
+  snip: 
+    preset: "ewasm"

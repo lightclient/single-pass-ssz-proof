@@ -5,7 +5,7 @@ use crate::CHUNK_SIZE;
 //
 // i) Only supports a single branch.
 pub fn update(
-    mut index: usize,
+    mut index: u64,
     chunks: &[u8],
     calculated_pre_state_root: &mut [u8; CHUNK_SIZE],
     calculated_post_state_root: &mut [u8; CHUNK_SIZE],
@@ -28,7 +28,7 @@ pub fn update(
         // The leaf's parity determines which slot the chunk data should go.
         // Even => Left node  => 0..32
         // Odd  => Right node => 32..64
-        let parity = index % 2;
+        let parity = (index % 2) as usize;
 
         // If the last calculated hash was for an odd node, it should be in the second 32 bytes of
         // the hash buffer.
@@ -50,7 +50,7 @@ pub fn update(
 
         #[cfg(feature = "std")]
         {
-            let left = index & (-2isize as usize);
+            let left = index & (-2isize as u64);
             let right = left + 1;
             println!(
                 "last calculated: {}\nh({}, {})\npre-state:  {} | {}\npost-state: {} | {}\n",
@@ -68,7 +68,7 @@ pub fn update(
         hash(&mut pre_buf);
         hash(&mut post_buf);
 
-        i += CHUNK_SIZE;
+        i += 32;
         index = index / 2;
     }
 
@@ -107,7 +107,7 @@ mod tests {
         //     0 1   2 3   4 5   6 7   8 9  10 11 12 13 14 15   <= account index
 
         // The account which the proof is for and whose balance will be updated
-        let account: usize = 0;
+        let account: u64 = 0;
 
         let mut input = [0u8; 5 * CHUNK_SIZE];
 
@@ -165,7 +165,7 @@ mod tests {
         // is `zh(40)`.
 
         // The account which the proof is for and whose balance will be updated
-        let account: usize = 99999;
+        let account: u64 = 99999;
 
         // Intialize buffer to hold branch with 41 nodes.
         let mut input = [0u8; 41 * CHUNK_SIZE];
@@ -173,6 +173,8 @@ mod tests {
         // Generate a merkle proof for an account with a balance of 0. Since all account have a
         // balance of 0, this initial proof can be used interchangably amongst them.
         generate_branch(40, &mut input);
+        #[cfg(feature = "std")]
+        println!("input data: {}", hex::encode(&input[0..1312]));
 
         // The new balance will `1u256`.
         let new_balance: [u8; CHUNK_SIZE] = {
