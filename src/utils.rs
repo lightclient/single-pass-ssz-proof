@@ -46,7 +46,7 @@ mod tests {
 
 pub fn generate_branch(height: usize, chunks: &mut [&mut [u8; 32]]) {
     if height > chunks.len() - 1 {
-        panic!("chunks buffer too small");
+        panic!("chunks buffer too small: {}", chunks.len());
     }
 
     let mut buf = [0u8; 64];

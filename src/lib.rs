@@ -3,15 +3,12 @@
 pub mod utils;
 use utils::hash;
 
-const TREE_SIZE: usize = 4;
-const NUM_HASHES: usize = TREE_SIZE + 1;
-
 // A few caveats at the moment:
 //
 // i) Only supports a single branch.
 pub fn single_pass(
     mut index: usize,
-    chunks: &[&mut [u8; 32]; NUM_HASHES],
+    chunks: &[&mut [u8; 32]],
     calculated_pre_state_root: &mut [u8; 32],
     calculated_post_state_root: &mut [u8; 32],
     new_balance: &[u8; 32],
@@ -137,7 +134,7 @@ mod tests {
 
         // Calculate the post-state root and verify the pre-state root in one pass.
         single_pass(
-            account + 16,
+            account + (1 << 4),
             &input,
             &mut calculated_pre_state_root,
             &mut calculated_post_state_root,
@@ -157,6 +154,108 @@ mod tests {
                 .unwrap()[0..32];
         let post_state_root =
             &hex::decode("0eefb94faea1cefdd28c895a51ba5822bcac513cd59413ece941e21d78bc83c4")
+                .unwrap()[0..32];
+
+        assert_eq!(pre_state_root, calculated_pre_state_root);
+        assert_eq!(post_state_root, calculated_post_state_root);
+    }
+
+    #[test]
+    fn sanity_check_bigger() {
+        // For this example, we'll assume we're operating on an object with the following
+        // structure:
+        //
+        // AccountBalance => FixedVector[u256, 2**40];
+        //
+        // All account's start with a balance of 0. Therefore, the accounts' root before updating
+        // is `zh(40)`.
+
+        // The account which the proof is for and whose balance will be updated
+        let account: usize = 99999;
+
+        // This is stupid -- &mut doesn't implement the copy trait so need init them manually.
+        let mut input = [
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+            &mut [0u8; 32],
+        ];
+
+        // Generate a merkle proof for an account with a balance of 0. Since all account have a
+        // balance of 0, this initial proof can be used interchangably amongst them.
+        generate_branch(40, &mut input[0..41]);
+
+        // The new balance will `1u256`.
+        let new_balance: [u8; 32] = {
+            let mut tmp = [0u8; 32];
+            tmp[0] = 1;
+            tmp
+        };
+
+        // Buffer to hold the calculated post-state root
+        let mut calculated_pre_state_root = [0u8; 32];
+        let mut calculated_post_state_root = [0u8; 32];
+
+        // Calculate the post-state root and verify the pre-state root in one pass.
+        single_pass(
+            // 1 << 40 == first leaf index
+            account + (1 << 40),
+            &input,
+            &mut calculated_pre_state_root,
+            &mut calculated_post_state_root,
+            &new_balance,
+        );
+
+        #[cfg(feature = "std")]
+        println!(
+            "final:\npre-state root:  {}\npost-state root: {}",
+            hex::encode(&calculated_pre_state_root),
+            hex::encode(&calculated_post_state_root)
+        );
+
+        // Verify that the calculated root is equal to the expected roots.
+        let pre_state_root =
+            &hex::decode("6bfe8d2bcc4237b74a5047058ef455339ecd7360cb63bfbb8ee5448e6430ba04")
+                .unwrap()[0..32];
+        let post_state_root =
+            &hex::decode("d9d47ae1800a35de6007a8541eded6e0ede2826c5da208709ed45eca6a1c16c4")
                 .unwrap()[0..32];
 
         assert_eq!(pre_state_root, calculated_pre_state_root);
