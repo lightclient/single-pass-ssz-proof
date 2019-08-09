@@ -23,7 +23,7 @@ pub fn update(
 
     // Begin calculating the root -- skip the first chunk since it has already been loaded into the
     // buffer.
-    let mut i = 32;
+    let mut i = CHUNK_SIZE;
     while i < chunks.len() {
         // The leaf's parity determines which slot the chunk data should go.
         // Even => Left node  => 0..32
@@ -68,7 +68,7 @@ pub fn update(
         hash(&mut pre_buf);
         hash(&mut post_buf);
 
-        i += 32;
+        i += CHUNK_SIZE;
         index = index / 2;
     }
 
