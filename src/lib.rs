@@ -50,7 +50,7 @@ pub extern "C" fn main() {
     // Verify pre-state root == calculated pre-state root
     let mut pre_state_root = [0u8; CHUNK_SIZE];
     unsafe { native::eth2_loadPreStateRoot(pre_state_root.as_mut_ptr() as *const u32) }
-    // assert_eq!(pre_state_root, calculated_pre_state_root);
+    assert_eq!(pre_state_root, calculated_pre_state_root);
 
     // Return post state
     unsafe { native::eth2_savePostStateRoot(calculated_post_state_root.as_mut_ptr() as *const u32) }
